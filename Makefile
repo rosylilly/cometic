@@ -1,6 +1,6 @@
 TARGET=build/last_updated
 
-$(TARGET): package.json src/*.html src/*.js
+$(TARGET): clean package.json src/*.html src/*.js
 	nwbuild -o build .
 	date > ${TARGET}
 

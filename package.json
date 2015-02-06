@@ -11,6 +11,7 @@
   },
   "no-edit-menu": false,
   "dependencies": {
+    "mmmagic": "^0.3.13",
     "zip": "^1.2.0"
   }
 }
