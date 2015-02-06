@@ -1,0 +1,16 @@
+{
+  "name": "Cometic",
+  "version": "0.0.1",
+  "main": "src/index.html",
+  "window": {
+    "toolbar": false,
+    "resizable": true,
+    "as_desktop": true,
+    "width": 800,
+    "height": 600
+  },
+  "no-edit-menu": false,
+  "dependencies": {
+    "zip": "^1.2.0"
+  }
+}

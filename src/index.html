@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html id="app">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="./app.css" media="all">
+    <script type="text/javascript" src="./zepto.min.js"></script>
+    <script type="text/javascript" src="./vue.min.js"></script>
+    <script type="text/javascript" src="./nw.js"></script>
+    <script type="text/javascript" src="./app.js"></script>
+    <title v-text="title"></title>
+  </head>
+  <body v-on="dragover: onDragover, dragleave: onDragleave, drop: onDrop">
+    <input id="file-selector" type="file" accept=".zip,.epub" v-on="change: selectFile">
+
+    <canvas id="canvas"
+      v-attr="width: actualWidth, height: actualHeight"
+      v-style="width: window.width + 'px', height: window.height + 'px'"
+    ></canvas>
+  </body>
+</html>
