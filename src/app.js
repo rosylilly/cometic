@@ -1,6 +1,8 @@
 var ACCEPTED_EXTS = ['jpg', 'gif', 'png', 'bmp', 'webp'];
+var ACCEPTED_ARCHIVES = ['zip', 'epub'];
 var path = require('path');
 var zip = require('zip');
+var fs = require('fs');
 
 function compareFileNames(a, b) {
   var fullWidthNums, i, j, A, B, aa, bb, fwn;
@@ -34,16 +36,19 @@ function compareFileNames(a, b) {
 }
 
 Zepto(function($) {
-  var Page = function(data, ext) {
+  var Page = function(name, data, ext) {
     var page = this;
 
+    this.name = name;
     this.data = data;
     this.img = new Image();
 
     this.img.onload = function() {
       page.loaded = true;
     };
-    this.img.src = "data:image/" + ext + ";base64," + this.data;
+
+    this.loaded = false;
+    this.ext = ext;
   };
   Page.prototype.onload = function(f) {
     if(this.loaded) {
@@ -54,9 +59,16 @@ Zepto(function($) {
         page.loaded = true;
         f(page);
       }
+      this.load();
     }
-  }
+  };
+  Page.prototype.load = function() {
+    if(this.loaded) { return };
 
+    this.img.src = "data:image/" + this.ext + ";base64," + this.data.toString('base64');
+  };
+
+  var onreadyFunc = window.App.onready;
   window.App = new Vue({
     el: '#app',
     data: {
@@ -72,8 +84,13 @@ Zepto(function($) {
         idx: 0,
         dir: 0
       },
-      maxRatio: 10
+      maxRatio: 10,
+      preloadNum: 10,
+      directory: '',
+      bookList: 'hidden',
+      loading: false
     },
+
     computed: {
       actualWidth: function() {
         return Math.floor(this.window.width * this.window.dppx);
@@ -89,9 +106,33 @@ Zepto(function($) {
         }
       },
       maxIdx: function() {
-        return this.book.pages.length / 2;
+        return Math.floor(this.book.pages.length / 2);
+      },
+
+      books: function() {
+        var app = this;
+
+        var books =$.grep(
+            $.map(fs.readdirSync(this.directory), function(name) {
+              var fullpath = path.join(app.directory, name);
+              return {
+                path: fullpath,
+                name: name,
+                basename: path.basename(name, path.extname(name)),
+                current: fullpath == app.book.path
+              };
+            }),
+            function(file) {
+              var ext = path.extname(file.path).toLowerCase().substr(1);
+
+              return ACCEPTED_ARCHIVES.indexOf(ext) != -1;
+            });
+        books.sort(compareFileNames);
+
+        return books
       }
     },
+
     methods: {
       onDragover: function(e) {
         e.preventDefault();
@@ -126,16 +167,29 @@ Zepto(function($) {
         App.fileSelector.reset();
       },
 
+      selectBookByList: function(e, book) {
+        if(e) { e.preventDefault(); }
+
+        this.getBook(book);
+      },
+
       getBook: function(file) {
+        if(!file) { return; }
+
+        this.directory = path.dirname(file.path);
         this.book.path = file.path;
         this.book.title = path.basename(file.path, path.extname(file.path));
         this.book.pages = [];
         this.book.idx = 0;
+        this.rawPages = [];
+        this.loading = true;
 
-        var reader = new FileReader();
+        this.setBookListScroll();
+
         var app = this;
-        reader.onload = function(e) {
-          var zipReader = zip.Reader(new Buffer(e.target.result, 'binary'));
+
+        fs.readFile(file.path, function(err, data) {
+          var zipReader = zip.Reader(data);
           zipReader.forEach(function(entry) {
             if(entry.isDirectory()) {
               return;
@@ -148,41 +202,44 @@ Zepto(function($) {
               return;
             }
 
-            var base64 = entry.getData().toString('base64');
-
             app.book.pages.push({
               name: fileName,
-              ext: ext,
-              page: new Page(base64, ext)
+              ext: ext
             });
+            app.rawPages.push(new Page(fileName, entry.getData(), ext));
           });
 
           app.book.pages.sort(compareFileNames);
+          app.rawPages.sort(compareFileNames);
 
+          app.loading = false;
           app.redraw();
-        };
-        reader.readAsBinaryString(file);
+        });
       },
 
       render: function() {
-        var right = this.book.pages[-1+(this.book.idx*2)];
-        var left = this.book.pages[0+(this.book.idx*2)];
+        var right = this.rawPages[-1+(this.book.idx*2)];
+        var left = this.rawPages[0+(this.book.idx*2)];
 
         var app = this;
         var pageWidth = Math.floor(app.actualWidth / 2);
 
         app.context.clearRect(0, 0, app.actualWidth, app.actualHeight);
         if(left) {
-          left.page.onload(function(page) {
+          left.onload(function(page) {
             app.fitDraw(page.img, 0, pageWidth, 'right');
           });
         }
 
         if(right) {
-          right.page.onload(function(page) {
+          right.onload(function(page) {
             app.fitDraw(page.img, pageWidth, app.actualWidth - pageWidth, 'left');
           });
         }
+
+        process.nextTick(function() {
+          app.preload(1+(app.book.idx*2), app.preloadNum);
+        });
       },
 
       fitDraw: function(img, x, width, align) {
@@ -219,6 +276,7 @@ Zepto(function($) {
 
 
         this.context.drawImage(img, ix, iy, iw, ih);
+        this.$emit('render');
       },
 
       redraw: function() {
@@ -240,6 +298,65 @@ Zepto(function($) {
 
         this.book.idx--;
         this.redraw();
+      },
+
+      preload: function(idx, n) {
+        if(n <= 0) { return };
+
+        var page = this.rawPages[idx];
+        if(page) {
+          page.load();
+
+          var app = this;
+          process.nextTick(function() {
+            app.preload(idx+1, n-1);
+          });
+        }
+      },
+
+      currentBookIdx: function() {
+        var books = this.books;
+
+        var idx = 0;
+        var app = this;
+        $.each(books, function(i, book) {
+          if(book.current) {
+            idx = i;
+          }
+        });
+
+        return idx;
+      },
+
+      nextBook: function() {
+        var books = this.books;
+        var idx = this.currentBookIdx() + 1;
+        if(idx >= books.length) {
+          idx -= books.length;
+        }
+
+        this.getBook(books[idx]);
+      },
+
+      prevBook: function() {
+        var books = this.books;
+        var idx = this.currentBookIdx() - 1;
+        if(idx < 0) {
+          idx += books.length;
+        }
+
+        this.getBook(books[idx]);
+      },
+
+      setBookListScroll: function() {
+        var app = this;
+
+        requestAnimationFrame(function() {
+          var current = $('#books .current');
+          var positionTop = current.offset().top + $('#books').scrollTop();
+          console.debug(positionTop);
+          $('#books').scrollTop(positionTop - (app.window.height / 2) + (current.height() / 2));
+        });
       }
     }
   });
@@ -247,6 +364,7 @@ Zepto(function($) {
   App.fileSelector = $('#file-selector');
   App.canvas = $('#canvas').get(0);
   App.context = App.canvas.getContext('2d');
+  App.rawPages = [];
 
   $(window).on('resize', function(e) {
     App.window.width = window.innerWidth;
@@ -261,21 +379,46 @@ Zepto(function($) {
 
   Mousetrap.bind(['left', 'h', 'a'], function() {
     App[['forward', 'back'][App.book.dir]]();
-    return false;
   });
 
   Mousetrap.bind(['right', 'l', 'd'], function() {
     App[['back', 'forward'][App.book.dir]]();
-    return false;
+  });
+
+  Mousetrap.bind(['down', 'j', 's'], function() {
+    App.nextBook();
+  });
+
+  Mousetrap.bind(['up', 'k', 'w'], function() {
+    App.prevBook();
   });
 
   Mousetrap.bind('space', function() {
     App.forward();
-    return false;
   });
 
   Mousetrap.bind('shift+space', function() {
     App.back();
-    return false;
   });
+
+  Mousetrap.bind(['o', 'q'], function() {
+    if(App.bookList != 'mini') {
+      App.bookList = 'mini';
+    } else {
+      App.bookList = 'hidden';
+    }
+  });
+
+  Mousetrap.bind(['O', 'Q'], function() {
+    if(App.bookList != 'full') {
+      App.bookList = 'full';
+    } else {
+      App.bookList = 'hidden';
+    }
+  });
+
+  App.ready = true;
+  if(onreadyFunc) {
+    onreadyFunc();
+  };
 });

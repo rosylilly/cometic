@@ -4,6 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="./app.css" media="all">
+    <script type="text/javascript" src="./zip.js"></script>
+    <script type="text/javascript">
+      zip.workerScriptsPath = './';
+    </script>
     <script type="text/javascript" src="./zepto.min.js"></script>
     <script type="text/javascript" src="./vue.min.js"></script>
     <script type="text/javascript" src="./mousetrap.min.js"></script>
@@ -18,5 +22,11 @@
       v-attr="width: actualWidth, height: actualHeight"
       v-style="width: window.width + 'px', height: window.height + 'px'"
     ></canvas>
+
+    <div id="loading" v-show="loading">{{book.title}}をロード中...</div>
+
+    <ul id="books" class="{{bookList}}">
+      <li v-repeat="books" class="book-{{$index}}" track-by="path" v-class="current: current"><a href="#" v-on="click: selectBookByList($event, this)">{{basename}}</a></li>
+    </ul>
   </body>
 </html>

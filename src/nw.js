@@ -30,12 +30,23 @@ var windowMenu = nativeMenuBar.items[2].submenu;
 windowMenu.insert(new gui.MenuItem({
   label: 'フルスクリーン', modifiers: 'cmd-shift', key: 'f',
   click: function() {
-    if(win.isFullscreen) {
-      win.leaveFullscreen();
-    } else {
-      win.enterFullscreen();
-    }
+    win.toggleFullscreen();
   }
 }), 2);
 
 win.menu = nativeMenuBar;
+
+window.App = {
+  ready: false,
+  onready: null
+};
+
+gui.App.on('open', function(path) {
+  if(App.ready) {
+    App.getBook({ path: path });
+  } else {
+    App.onready = function() {
+      App.getBook({ path: path });
+    }
+  };
+});

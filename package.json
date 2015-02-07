@@ -3,6 +3,7 @@
   "version": "0.0.1",
   "main": "src/index.html",
   "window": {
+    "icon": "./icons/png/256x256.png",
     "toolbar": false,
     "resizable": true,
     "as_desktop": true,
@@ -11,7 +12,11 @@
   },
   "no-edit-menu": false,
   "dependencies": {
-    "mmmagic": "^0.3.13",
     "zip": "^1.2.0"
+  },
+  "devDependencies": {
+    "gulp": "^3.8.10",
+    "gulp-util": "^3.0.3",
+    "node-webkit-builder": "^1.0.8"
   }
 }
