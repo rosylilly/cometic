@@ -189,6 +189,11 @@ Zepto(function($) {
         var app = this;
 
         fs.readFile(file.path, function(err, data) {
+          if(err) {
+            alert("ファイルの読み込みに失敗しました。");
+            return;
+          }
+
           var zipReader = zip.Reader(data);
           zipReader.forEach(function(entry) {
             if(entry.isDirectory()) {
